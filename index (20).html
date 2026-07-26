@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Song Request Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-card: rgba(13,11,18,0.80);
+    --accent-a: #F4B84E;   /* тёплый янтарь — как подсветка вертушки */
+    --accent-b: #8C6BFF;   /* мягкий фиолетовый — как радиоволна */
+    --text-hi: #F7F4EF;
+    --text-mid: #ADA6BE;
+    --text-dim: #6E6780;
+    --danger: #FF6B6B;
+    --good: #6EE7B7;
+    --radius: 20px;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; background:transparent;
+    font-family:'Inter',sans-serif; color:var(--text-hi);
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{ width:100%; min-height:100vh; }
+
+  /* ---------- SETUP SCREEN ---------- */
+  #setup-screen{
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; padding:32px;
+    background:radial-gradient(circle at 20% 20%, #1a1522 0%, #0a0810 60%);
+  }
+  .setup-card{
+    width:100%; max-width:480px;
+    background:rgba(20,17,28,0.92);
+    border:1px solid rgba(255,255,255,0.07);
+    border-radius:var(--radius);
+    padding:32px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .setup-title{
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:22px;
+    display:flex; align-items:center; gap:10px; margin:0 0 6px;
+  }
+  .setup-sub{ color:var(--text-mid); font-size:13.5px; line-height:1.5; margin:0 0 24px; }
+  .field{ margin-bottom:16px; }
+  .field label{
+    display:block; font-size:12px; font-weight:600; letter-spacing:.02em;
+    color:var(--text-mid); margin-bottom:6px; text-transform:uppercase;
+  }
+  .field input{
+    width:100%; padding:11px 13px; border-radius:10px; border:1px solid rgba(255,255,255,0.12);
+    background:rgba(0,0,0,0.35); color:var(--text-hi); font-size:14px; font-family:'JetBrains Mono',monospace;
+    outline:none; transition:border-color .15s;
+  }
+  .field input::placeholder{ color:var(--text-dim); font-family:'Inter',sans-serif; }
+  .field input:focus{ border-color:var(--accent-a); }
+  .field .hint{ font-size:11.5px; color:var(--text-dim); margin-top:5px; line-height:1.4; }
+  .btn{
+    width:100%; padding:12px; border:none; border-radius:10px; cursor:pointer;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px;
+    background:linear-gradient(90deg, var(--accent-a), var(--accent-b)); color:#160f22;
+    transition:transform .12s, opacity .12s;
+  }
+  .btn:hover{ transform:translateY(-1px); }
+  .btn:active{ transform:translateY(0); opacity:.85; }
+  .btn-ghost{
+    background:transparent; border:1px solid rgba(255,255,255,0.15); color:var(--text-hi);
+    margin-top:10px;
+  }
+  .url-out{ display:flex; gap:8px; margin-top:6px; }
+  .url-out input{ font-size:11px; }
+  .url-out button{
+    flex-shrink:0; padding:0 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.15);
+    background:rgba(255,255,255,0.06); color:var(--text-hi); cursor:pointer; font-size:12px;
+  }
+  .help-toggle{
+    font-size:12.5px; color:var(--accent-a); cursor:pointer; margin-top:18px; display:inline-block;
+    border-bottom:1px dotted var(--accent-a);
+  }
+  .help-body{
+    display:none; margin-top:14px; font-size:12.5px; color:var(--text-mid); line-height:1.65;
+    background:rgba(0,0,0,0.3); border-radius:10px; padding:14px 16px;
+  }
+  .help-body ol{ padding-left:18px; margin:6px 0; }
+  .help-body a{ color:var(--accent-a); }
+  .status-line{ margin-top:16px; font-size:12.5px; color:var(--text-mid); min-height:18px; }
+  .status-line.err{ color:var(--danger); }
+  .status-line.ok{ color:var(--good); }
+
+  /* ---------- OVERLAY SCREEN ---------- */
+  #overlay-screen{ display:none; padding:22px; }
+
+  #debug-panel{
+    position:fixed; left:14px; bottom:14px; max-width:420px;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; line-height:1.6;
+    color:var(--text-mid); background:rgba(0,0,0,0.55); border-radius:8px;
+    padding:8px 10px; pointer-events:none; white-space:pre-wrap; display:none;
+  }
+  #debug-panel .d-err{ color:var(--danger); }
+  #debug-panel .d-ok{ color:var(--good); }
+
+  .card{
+    width:340px;
+    background:var(--bg-card);
+    backdrop-filter:blur(16px);
+    border:1px solid rgba(244,184,78,0.16);
+    border-radius:var(--radius);
+    padding:18px;
+    box-shadow:0 16px 44px rgba(0,0,0,0.42);
+  }
+
+  /* signature: spinning vinyl disc */
+  .vinyl{ width:22px; height:22px; flex-shrink:0; }
+  .vinyl .spin{ transform-origin:50% 50%; animation:spin 3.2s linear infinite; animation-play-state:paused; }
+  .vinyl.playing .spin{ animation-play-state:running; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .now-head{ display:flex; align-items:center; gap:9px; margin-bottom:12px; }
+  .now-label{
+    font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:700;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--accent-a);
+  }
+
+  .player-box{
+    width:100%; aspect-ratio:16/9; border-radius:14px; overflow:hidden; background:#000;
+    margin-bottom:11px; position:relative;
+  }
+  .player-box iframe{ width:100%; height:100%; border:0; display:block; }
+  #sc-frame-wrap{ display:none; }
+  #sc-frame-wrap iframe{ height:150px; }
+
+  .progress-track{
+    height:3px; width:100%; background:rgba(255,255,255,0.1);
+    border-radius:2px; margin-bottom:12px; overflow:hidden;
+  }
+  .progress-fill{
+    height:100%; width:0%; border-radius:2px;
+    background:linear-gradient(90deg, var(--accent-a), var(--accent-b));
+    transition:width .4s linear;
+  }
+
+  .track-meta{ display:flex; flex-direction:column; gap:3px; margin-bottom:2px; }
+  .track-title{
+    font-family:'Space Grotesk',sans-serif; font-size:14.5px; font-weight:700; color:var(--text-hi);
+    line-height:1.3; overflow:hidden; text-overflow:ellipsis; display:-webkit-box;
+    -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  }
+  .track-req{ font-size:12px; color:var(--text-mid); }
+  .track-req b{ color:var(--accent-a); font-weight:600; }
+
+  .idle-box{ text-align:center; padding:22px 6px; }
+  .idle-box .vinyl{ width:34px; height:34px; margin:0 auto 10px; }
+  .idle-box .big{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14.5px; margin-bottom:3px; }
+  .idle-box .small{ font-size:11.5px; color:var(--text-mid); }
+
+  .queue-wrap{ margin-top:14px; }
+  .queue-title{ font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-dim); margin-bottom:8px; font-weight:600; }
+  .queue-item{
+    display:flex; align-items:center; gap:8px; padding:7px 9px;
+    background:rgba(255,255,255,0.035); border-radius:9px; margin-bottom:6px; font-size:12px;
+  }
+  .queue-item .qi-num{ color:var(--accent-a); font-family:'JetBrains Mono',monospace; font-size:11px; flex-shrink:0; width:14px; }
+  .queue-item .qi-title{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-hi); }
+  .queue-item .qi-req{ color:var(--text-dim); flex-shrink:0; font-size:11px; }
+  .queue-empty{ font-size:12px; color:var(--text-dim); }
+
+  .skip-btn{
+    margin-top:2px; padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);
+    background:rgba(255,255,255,0.04); color:var(--text-dim); font-size:11px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:5px; float:right;
+  }
+  .skip-btn:hover{ color:var(--text-hi); border-color:rgba(255,255,255,0.22); }
+  .now-head-row{ display:flex; align-items:center; justify-content:space-between; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= SETUP SCREEN ================= -->
+  <div id="setup-screen">
+    <div class="setup-card">
+      <p class="setup-title">🎧 Song Request Overlay</p>
+      <p class="setup-sub">Виджет слушает награду за баллы канала на Twitch. Как только зритель заказывает трек с YouTube или SoundCloud, он встаёт в очередь и включается сам.</p>
+
+      <div class="field">
+        <label>Client ID</label>
+        <input id="in-client" placeholder="из dev.twitch.tv/console/apps">
+      </div>
+
+      <button class="btn" id="btn-twitch-login" type="button">Войти через Twitch ↗</button>
+      <div class="hint" style="margin:6px 0 16px">Это заполнит токен и канал автоматически. Либо введите токен вручную ниже.</div>
+
+      <div class="field">
+        <label>Access Token</label>
+        <input id="in-token" placeholder="без приставки oauth:">
+        <div class="hint">Нужен токен с правом (scope) <b>channel:read:redemptions</b>.</div>
+      </div>
+      <div class="field">
+        <label>Имя канала (логин на Twitch)</label>
+        <input id="in-channel" placeholder="например: mychannel">
+      </div>
+      <div class="field">
+        <label>Название награды</label>
+        <input id="in-reward" placeholder="например: Заказать музыку">
+        <div class="hint">Должно точно совпадать с названием награды в панели Twitch (регистр не важен). У награды обязательно включите поле «требовать ввод текста от зрителя».</div>
+      </div>
+
+      <button class="btn" id="btn-start">Сохранить и запустить превью</button>
+      <button class="btn btn-ghost" id="btn-genurl">Сгенерировать ссылку для OBS</button>
+
+      <div id="url-block" style="display:none">
+        <div class="url-out">
+          <input id="out-url" readonly>
+          <button id="btn-copy">Copy</button>
+        </div>
+        <div class="hint">Вставьте эту ссылку в источник «Браузер» (Browser Source) в OBS — виджет запустится автоматически, без экрана настройки. Добавьте <code>&debug=1</code> в конец ссылки, если понадобится включить лог отладки.</div>
+      </div>
+
+      <span class="help-toggle" id="help-toggle">Как получить Client ID и токен?</span>
+      <div class="help-body" id="help-body">
+        <b>1. Client ID</b>
+        <ol>
+          <li>Зайдите на <a href="https://dev.twitch.tv/console/apps" target="_blank">dev.twitch.tv/console/apps</a> и создайте приложение (Register Your Application).</li>
+          <li><b>OAuth Redirect URL — впишите точный адрес этой страницы</b> (без параметров после ?). Например: <code id="help-redirect-url"></code></li>
+          <li>Скопируйте выданный <b>Client ID</b>.</li>
+        </ol>
+        <b>2. Access Token</b>
+        <ol>
+          <li>Проще всего — нажать кнопку <b>«Войти через Twitch»</b> выше: токен, канал и Client ID подставятся сами.</li>
+          <li>Либо получить токен вручную через <a href="https://twitchtokengenerator.com" target="_blank">twitchtokengenerator.com</a> со scope <b>channel:read:redemptions</b> — но тогда Client ID там и здесь должны совпадать.</li>
+        </ol>
+        <b>3. Награда</b>
+        <p>В панели Twitch (Creator Dashboard → Viewer Rewards → Channel Points) создайте награду, включите «Require Viewer to Enter Text».</p>
+      </div>
+
+      <div class="status-line" id="setup-status"></div>
+    </div>
+  </div>
+
+  <!-- ================= OVERLAY SCREEN ================= -->
+  <div id="overlay-screen">
+    <div id="debug-panel"></div>
+    <div class="card">
+
+      <div id="idle-view" class="idle-box">
+        <svg class="vinyl" viewBox="0 0 40 40"><g class="spin"><circle cx="20" cy="20" r="19" fill="#15111f" stroke="rgba(244,184,78,0.25)"/><circle cx="20" cy="20" r="14" fill="none" stroke="rgba(255,255,255,0.06)"/><circle cx="20" cy="20" r="10" fill="none" stroke="rgba(255,255,255,0.05)"/><circle cx="20" cy="20" r="6" fill="#F4B84E"/><circle cx="20" cy="20" r="1.6" fill="#15111f"/></g></svg>
+        <div class="big">Ждём заказы музыки</div>
+        <div class="small">Погасите баллы канала, чтобы включить трек</div>
+      </div>
+
+      <div id="playing-view" style="display:none">
+        <div class="now-head-row">
+          <div class="now-head">
+            <svg class="vinyl playing" viewBox="0 0 40 40"><g class="spin"><circle cx="20" cy="20" r="19" fill="#15111f" stroke="rgba(244,184,78,0.3)"/><circle cx="20" cy="20" r="14" fill="none" stroke="rgba(255,255,255,0.07)"/><circle cx="20" cy="20" r="10" fill="none" stroke="rgba(255,255,255,0.06)"/><circle cx="20" cy="20" r="6" fill="#F4B84E"/><circle cx="20" cy="20" r="1.6" fill="#15111f"/></g></svg>
+            <span class="now-label">Сейчас играет</span>
+          </div>
+        </div>
+
+        <div class="player-box" id="yt-box">
+          <div id="yt-player"></div>
+        </div>
+        <div class="player-box" id="sc-frame-wrap">
+          <iframe id="sc-iframe" scrolling="no" frameborder="no"
+            src="https://w.soundcloud.com/player/?url=&auto_play=false&color=%23F4B84E&show_comments=false&show_user=false&show_reposts=false&visual=false"></iframe>
+        </div>
+
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+
+        <div class="track-meta">
+          <div class="track-title" id="track-title">—</div>
+          <div class="track-req">заказал(а) <b id="track-req"></b></div>
+        </div>
+        <button class="skip-btn" id="btn-skip">Пропустить ▸</button>
+        <div style="clear:both"></div>
+      </div>
+
+      <div class="queue-wrap">
+        <div class="queue-title">Очередь</div>
+        <div id="queue-list"><div class="queue-empty">пусто</div></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script src="https://w.soundcloud.com/player/api.js"></script>
+<script>
+(function(){
+  // ---------- state ----------
+  var cfg = { clientId:'', token:'', channel:'', reward:'', debug:false };
+  var queue = [];
+  var current = null;
+  var ytPlayer = null, ytReady = false;
+  var scWidget = null, scReady = false;
+  var ws = null, wsBackoff = 1000;
+  var progressTimer = null;
+
+  // ---------- helpers ----------
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+  function parseRequest(text){
+    if(!text) return null;
+    text = text.trim();
+    var yt = text.match(/(?:youtube\.com\/(?:watch\?[^ ]*v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/i);
+    if(yt) return { type:'youtube', id: yt[1], url:'https://www.youtube.com/watch?v='+yt[1], raw:text };
+    var sc = text.match(/(https?:\/\/(?:www\.|m\.)?(?:soundcloud\.com|snd\.sc)\/[^\s]+)/i);
+    if(sc) return { type:'soundcloud', url: sc[1], raw:text };
+    return null;
+  }
+
+  function fetchTitle(item){
+    var oembedUrl = item.type === 'youtube'
+      ? 'https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(item.url)
+      : 'https://soundcloud.com/oembed?format=json&url=' + encodeURIComponent(item.url);
+    fetch(oembedUrl).then(function(r){ return r.ok ? r.json() : null; }).then(function(data){
+      if(!data) return;
+      item.title = data.title || item.raw;
+      item.author = data.author_name || '';
+      renderQueue();
+      if(current === item) updateNowPlayingMeta();
+    }).catch(function(){});
+  }
+
+  function setDot(){ /* kept for backwards compatibility with debug calls */ }
+
+  // ---------- queue / player ----------
+  function displayName(item){ return item.title || item.raw; }
+
+  function renderQueue(){
+    var el = $('queue-list');
+    if(queue.length === 0){ el.innerHTML = '<div class="queue-empty">пусто</div>'; return; }
+    el.innerHTML = queue.map(function(q, i){
+      return '<div class="queue-item"><span class="qi-num">'+(i+1)+'</span><span class="qi-title">'+esc(displayName(q))+'</span><span class="qi-req">'+esc(q.requester)+'</span></div>';
+    }).join('');
+  }
+
+  function updateNowPlayingMeta(){
+    $('track-title').textContent = displayName(current);
+    $('track-req').textContent = current.requester;
+  }
+
+  function showIdle(){
+    $('idle-view').style.display = 'block';
+    $('playing-view').style.display = 'none';
+    stopProgressTimer();
+  }
+  function showPlaying(item){
+    $('idle-view').style.display = 'none';
+    $('playing-view').style.display = 'block';
+    updateNowPlayingMeta();
+    $('yt-box').style.display = item.type === 'youtube' ? 'block' : 'none';
+    $('sc-frame-wrap').style.display = item.type === 'soundcloud' ? 'block' : 'none';
+    $('progress-fill').style.width = '0%';
+  }
+
+  function stopProgressTimer(){ if(progressTimer){ clearInterval(progressTimer); progressTimer = null; } }
+  function startYTProgressTimer(){
+    stopProgressTimer();
+    progressTimer = setInterval(function(){
+      if(!ytPlayer || typeof ytPlayer.getDuration !== 'function') return;
+      var d = ytPlayer.getDuration(); var c = ytPlayer.getCurrentTime();
+      if(d > 0) $('progress-fill').style.width = Math.min(100, (c/d)*100) + '%';
+    }, 500);
+  }
+
+  function playNext(){
+    stopProgressTimer();
+    if(queue.length === 0){ current = null; showIdle(); renderQueue(); return; }
+    current = queue.shift();
+    renderQueue();
+    showPlaying(current);
+    debugLog('Играет: ' + displayName(current), false);
+    if(current.type === 'youtube'){
+      if(ytReady && ytPlayer) ytPlayer.loadVideoById(current.id);
+    } else {
+      if(scReady && scWidget) scWidget.load(current.url, { auto_play:true, show_comments:false, show_user:false, show_reposts:false, visual:false, color:'F4B84E' });
+    }
+  }
+
+  function enqueue(parsed, requester){
+    var item = { type:parsed.type, id:parsed.id, url:parsed.url, raw:parsed.raw, requester:requester, title:null };
+    queue.push(item);
+    fetchTitle(item);
+    renderQueue();
+    if(!current) playNext();
+  }
+
+  // ---------- YouTube ----------
+  window.onYouTubeIframeAPIReady = function(){
+    ytPlayer = new YT.Player('yt-player', {
+      height:'100%', width:'100%',
+      playerVars:{ autoplay:1, rel:0, controls:0, modestbranding:1, iv_load_policy:3, fs:0, disablekb:1, playsinline:1 },
+      events:{
+        onReady: function(){ ytReady = true; },
+        onStateChange: function(e){
+          if(e.data === YT.PlayerState.ENDED) playNext();
+          if(e.data === YT.PlayerState.PLAYING) startYTProgressTimer();
+        },
+        onError: function(e){
+          debugLog('YouTube не смог воспроизвести трек (код ' + e.data + '), пропускаю', true);
+          playNext();
+        }
+      }
+    });
+  };
+  var ytScript = document.createElement('script');
+  ytScript.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(ytScript);
+
+  // ---------- SoundCloud ----------
+  function initSC(){
+    if(typeof SC === 'undefined'){ setTimeout(initSC, 300); return; }
+    scWidget = SC.Widget('sc-iframe');
+    scWidget.bind(SC.Widget.Events.READY, function(){ scReady = true; });
+    scWidget.bind(SC.Widget.Events.FINISH, function(){ playNext(); });
+    scWidget.bind(SC.Widget.Events.PLAY_PROGRESS, function(d){
+      $('progress-fill').style.width = (d.relativePosition*100) + '%';
+    });
+    scWidget.bind(SC.Widget.Events.ERROR, function(){
+      debugLog('SoundCloud не смог воспроизвести трек, пропускаю', true);
+      playNext();
+    });
+  }
+  initSC();
+
+  // ---------- Twitch EventSub ----------
+  function connectEventSub(url){
+    debugLog('Подключение к EventSub WebSocket...', false);
+    ws = new WebSocket(url || 'wss://eventsub.wss.twitch.tv/ws');
+    ws.onopen = function(){ wsBackoff = 1000; debugLog('WebSocket открыт', false); };
+    ws.onclose = function(){
+      debugLog('WebSocket закрыт, переподключение через ' + (wsBackoff/1000) + 'с', true);
+      setTimeout(function(){ connectEventSub(); }, wsBackoff);
+      wsBackoff = Math.min(wsBackoff * 2, 30000);
+    };
+    ws.onerror = function(){ debugLog('Ошибка WebSocket', true); };
+    ws.onmessage = function(ev){
+      var msg;
+      try { msg = JSON.parse(ev.data); } catch(e){ return; }
+      var type = msg.metadata && msg.metadata.message_type;
+
+      if(type === 'session_welcome'){
+        var sessionId = msg.payload.session.id;
+        debugLog('Сессия установлена, создаю подписку...', false);
+        createSubscription(sessionId);
+      } else if(type === 'session_reconnect'){
+        var newUrl = msg.payload.session.reconnect_url;
+        var oldWs = ws;
+        connectEventSub(newUrl);
+        setTimeout(function(){ oldWs.close(); }, 2000);
+      } else if(type === 'notification'){
+        var sub = msg.payload.subscription;
+        if(sub && sub.type === 'channel.channel_points_custom_reward_redemption.add'){
+          debugLog('Получен редемпшен: "' + (msg.payload.event.reward && msg.payload.event.reward.title) + '"', false);
+          handleRedemption(msg.payload.event);
+        }
+      }
+    };
+  }
+
+  function helixHeaders(){
+    return { 'Client-Id': cfg.clientId, 'Authorization': 'Bearer ' + cfg.token, 'Content-Type': 'application/json' };
+  }
+
+  function createSubscription(sessionId){
+    fetch('https://api.twitch.tv/helix/users?login=' + encodeURIComponent(cfg.channel), { headers: helixHeaders() })
+      .then(function(r){ return r.json().then(function(body){ return { status:r.status, body:body }; }); })
+      .then(function(res){
+        if(res.status !== 200){
+          setStatus('Twitch API ошибка (' + res.status + '): ' + (res.body.message || JSON.stringify(res.body)), true);
+          return;
+        }
+        var userData = res.body;
+        if(!userData.data || !userData.data.length){
+          setStatus('Канал "'+cfg.channel+'" не найден (запрос прошёл, но пустой список). Проверьте логин.', true);
+          return;
+        }
+        var broadcasterId = userData.data[0].id;
+        return fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+          method:'POST', headers: helixHeaders(),
+          body: JSON.stringify({
+            type:'channel.channel_points_custom_reward_redemption.add',
+            version:'1',
+            condition:{ broadcaster_user_id: broadcasterId },
+            transport:{ method:'websocket', session_id: sessionId }
+          })
+        }).then(function(r2){ return r2.json().then(function(body2){ return { status:r2.status, body:body2 }; }); });
+      })
+      .then(function(res){
+        if(!res) return;
+        if(res.status === 202 || (res.body && res.body.data)){ setStatus('Подключено. Ждём заказы 🎶', false); }
+        else { setStatus('Ошибка подписки (' + res.status + '): ' + (res.body.message || JSON.stringify(res.body)), true); }
+      })
+      .catch(function(e){ setStatus('Ошибка сети: '+e.message, true); });
+  }
+
+  function handleRedemption(event){
+    var rewardTitle = (event.reward && event.reward.title || '').trim().toLowerCase();
+    if(rewardTitle !== cfg.reward.trim().toLowerCase()){
+      debugLog('Пропущено: название награды не совпадает с "' + cfg.reward + '"', true);
+      return;
+    }
+    var parsed = parseRequest(event.user_input || '');
+    if(!parsed){
+      debugLog('Пропущено: в тексте нет ссылки YouTube/SoundCloud ("' + (event.user_input||'') + '")', true);
+      return;
+    }
+    debugLog('Добавлено в очередь: ' + parsed.raw, false);
+    enqueue(parsed, event.user_name || event.user_login || 'зритель');
+  }
+
+  function setStatus(text, isErr){
+    var el = $('setup-status');
+    if(el){ el.textContent = text; el.className = 'status-line ' + (isErr ? 'err' : 'ok'); }
+    debugLog(text, isErr);
+  }
+
+  var debugLines = [];
+  function debugLog(text, isErr){
+    if(!cfg.debug) return;
+    var time = new Date().toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    debugLines.push('<span class="'+(isErr?'d-err':'d-ok')+'">['+time+'] '+esc(text)+'</span>');
+    if(debugLines.length > 10) debugLines.shift();
+    var el = $('debug-panel');
+    if(el) el.innerHTML = debugLines.join('<br>');
+  }
+
+  // ---------- boot ----------
+  function startOverlay(){
+    $('setup-screen').style.display = 'none';
+    $('overlay-screen').style.display = 'block';
+    var dp = $('debug-panel');
+    if(dp) dp.style.display = cfg.debug ? 'block' : 'none';
+    $('btn-skip').addEventListener('click', playNext);
+    debugLog('Канал: ' + cfg.channel + ' | Награда: "' + cfg.reward + '"', false);
+    connectEventSub();
+  }
+
+  function readForm(){
+    cfg.clientId = $('in-client').value.trim();
+    cfg.token = $('in-token').value.trim().replace(/^oauth:/,'');
+    cfg.channel = $('in-channel').value.trim().replace(/^#/,'');
+    cfg.reward = $('in-reward').value.trim();
+  }
+
+  function buildUrl(){
+    var base = location.origin + location.pathname;
+    var p = new URLSearchParams();
+    p.set('client_id', cfg.clientId);
+    p.set('token', cfg.token);
+    p.set('channel', cfg.channel);
+    p.set('reward', cfg.reward);
+    return base + '?' + p.toString();
+  }
+
+  function b64urlEncode(obj){
+    return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function b64urlDecode(str){
+    str = str.replace(/-/g,'+').replace(/_/g,'/');
+    while(str.length % 4) str += '=';
+    return JSON.parse(decodeURIComponent(escape(atob(str))));
+  }
+
+  function consumeOAuthHash(){
+    if(location.hash.indexOf('access_token=') === -1) return false;
+    var hp = new URLSearchParams(location.hash.substring(1));
+    var token = hp.get('access_token');
+    var stateRaw = hp.get('state');
+    var restored = { clientId:'', reward:'' };
+    try { restored = b64urlDecode(stateRaw); } catch(e){}
+    history.replaceState(null, '', location.pathname + location.search);
+    if(!token) return true;
+    fetch('https://id.twitch.tv/oauth2/validate', { headers:{ 'Authorization':'OAuth ' + token } })
+      .then(function(r){ return r.json(); })
+      .then(function(v){
+        if(!v.login){ setStatus('Не удалось подтвердить токен через Twitch.', true); return; }
+        $('in-client').value = restored.clientId || v.client_id || '';
+        $('in-token').value = token;
+        $('in-channel').value = v.login;
+        $('in-reward').value = restored.reward || '';
+        setStatus('Вход выполнен как "' + v.login + '". Проверьте название награды и жмите «Сохранить и запустить превью».', false);
+      })
+      .catch(function(e){ setStatus('Ошибка проверки токена: ' + e.message, true); });
+    return true;
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var redirectUri = location.origin + location.pathname;
+    var rEl = $('help-redirect-url'); if(rEl) rEl.textContent = redirectUri;
+
+    $('btn-twitch-login').addEventListener('click', function(){
+      var clientId = $('in-client').value.trim();
+      if(!clientId){ setStatus('Сначала введите Client ID.', true); return; }
+      var state = b64urlEncode({ clientId: clientId, reward: $('in-reward').value.trim() });
+      var authUrl = 'https://id.twitch.tv/oauth2/authorize'
+        + '?client_id=' + encodeURIComponent(clientId)
+        + '&redirect_uri=' + encodeURIComponent(redirectUri)
+        + '&response_type=token&scope=' + encodeURIComponent('channel:read:redemptions')
+        + '&state=' + encodeURIComponent(state);
+      location.href = authUrl;
+    });
+
+    var cameFromOAuth = consumeOAuthHash();
+
+    var params = new URLSearchParams(location.search);
+    cfg.clientId = params.get('client_id') || '';
+    cfg.token = params.get('token') || '';
+    cfg.channel = params.get('channel') || '';
+    cfg.reward = params.get('reward') || '';
+    cfg.debug = params.get('debug') === '1';
+    var dp = $('debug-panel');
+    if(dp) dp.style.display = cfg.debug ? 'block' : 'none';
+
+    if(!cameFromOAuth && cfg.clientId && cfg.token && cfg.channel && cfg.reward){
+      startOverlay();
+      return;
+    }
+
+    $('in-client').value = cfg.clientId;
+    $('in-token').value = cfg.token;
+    $('in-channel').value = cfg.channel;
+    $('in-reward').value = cfg.reward;
+
+    $('help-toggle').addEventListener('click', function(){
+      var b = $('help-body');
+      b.style.display = b.style.display === 'block' ? 'none' : 'block';
+    });
+
+    $('btn-start').addEventListener('click', function(){
+      readForm();
+      if(!cfg.clientId || !cfg.token || !cfg.channel || !cfg.reward){
+        setStatus('Заполните все поля.', true); return;
+      }
+      startOverlay();
+    });
+
+    $('btn-genurl').addEventListener('click', function(){
+      readForm();
+      if(!cfg.clientId || !cfg.token || !cfg.channel || !cfg.reward){
+        setStatus('Заполните все поля перед генерацией ссылки.', true); return;
+      }
+      $('out-url').value = buildUrl();
+      $('url-block').style.display = 'block';
+    });
+
+    $('btn-copy').addEventListener('click', function(){
+      $('out-url').select();
+      navigator.clipboard.writeText($('out-url').value).then(function(){
+        var b = $('btn-copy'); var old = b.textContent; b.textContent='Скопировано'; setTimeout(function(){ b.textContent = old; }, 1500);
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
