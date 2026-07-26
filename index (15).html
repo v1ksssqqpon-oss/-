@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Song Request Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-card: rgba(12,12,18,0.82);
+    --accent-a: #35F0D0;
+    --accent-b: #FF3EA5;
+    --text-hi: #F4F4FA;
+    --text-mid: #B6B6C6;
+    --text-dim: #6C6C7C;
+    --danger: #FF5C5C;
+    --good: #35F0D0;
+    --radius: 18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; background:transparent;
+    font-family:'Inter',sans-serif; color:var(--text-hi);
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{ width:100%; min-height:100vh; }
+
+  /* ---------- SETUP SCREEN ---------- */
+  #setup-screen{
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; padding:32px;
+    background:radial-gradient(circle at 20% 20%, #191926 0%, #0a0a10 60%);
+  }
+  .setup-card{
+    width:100%; max-width:480px;
+    background:rgba(20,20,30,0.9);
+    border:1px solid rgba(255,255,255,0.07);
+    border-radius:var(--radius);
+    padding:32px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .setup-title{
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:22px;
+    display:flex; align-items:center; gap:10px; margin:0 0 6px;
+  }
+  .setup-sub{ color:var(--text-mid); font-size:13.5px; line-height:1.5; margin:0 0 24px; }
+  .field{ margin-bottom:16px; }
+  .field label{
+    display:block; font-size:12px; font-weight:600; letter-spacing:.02em;
+    color:var(--text-mid); margin-bottom:6px; text-transform:uppercase;
+  }
+  .field input{
+    width:100%; padding:11px 13px; border-radius:10px; border:1px solid rgba(255,255,255,0.12);
+    background:rgba(0,0,0,0.35); color:var(--text-hi); font-size:14px; font-family:'JetBrains Mono',monospace;
+    outline:none; transition:border-color .15s;
+  }
+  .field input::placeholder{ color:var(--text-dim); font-family:'Inter',sans-serif; }
+  .field input:focus{ border-color:var(--accent-a); }
+  .field .hint{ font-size:11.5px; color:var(--text-dim); margin-top:5px; line-height:1.4; }
+  .btn{
+    width:100%; padding:12px; border:none; border-radius:10px; cursor:pointer;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px;
+    background:linear-gradient(90deg, var(--accent-a), var(--accent-b)); color:#0a0a10;
+    transition:transform .12s, opacity .12s;
+  }
+  .btn:hover{ transform:translateY(-1px); }
+  .btn:active{ transform:translateY(0); opacity:.85; }
+  .btn-ghost{
+    background:transparent; border:1px solid rgba(255,255,255,0.15); color:var(--text-hi);
+    margin-top:10px;
+  }
+  .url-out{
+    display:flex; gap:8px; margin-top:6px;
+  }
+  .url-out input{ font-size:11px; }
+  .url-out button{
+    flex-shrink:0; padding:0 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.15);
+    background:rgba(255,255,255,0.06); color:var(--text-hi); cursor:pointer; font-size:12px;
+  }
+  .help-toggle{
+    font-size:12.5px; color:var(--accent-a); cursor:pointer; margin-top:18px; display:inline-block;
+    border-bottom:1px dotted var(--accent-a);
+  }
+  .help-body{
+    display:none; margin-top:14px; font-size:12.5px; color:var(--text-mid); line-height:1.65;
+    background:rgba(0,0,0,0.3); border-radius:10px; padding:14px 16px;
+  }
+  .help-body ol{ padding-left:18px; margin:6px 0; }
+  .help-body a{ color:var(--accent-a); }
+  .status-line{ margin-top:16px; font-size:12.5px; color:var(--text-mid); min-height:18px; }
+  .status-line.err{ color:var(--danger); }
+  .status-line.ok{ color:var(--good); }
+
+  /* ---------- OVERLAY SCREEN ---------- */
+  #overlay-screen{ display:none; padding:22px; }
+  .conn-dot{
+    position:fixed; top:14px; right:14px; width:9px; height:9px; border-radius:50%;
+    background:var(--danger); box-shadow:0 0 8px var(--danger);
+  }
+  .conn-dot.on{ background:var(--good); box-shadow:0 0 8px var(--good); }
+
+  .card{
+    max-width:380px;
+    background:var(--bg-card);
+    backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:var(--radius);
+    padding:16px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.45);
+  }
+  .now-head{ display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+  .eq{ display:flex; align-items:flex-end; gap:2px; height:14px; }
+  .eq span{
+    width:3px; background:linear-gradient(180deg,var(--accent-a),var(--accent-b));
+    border-radius:2px; animation:bounce 1s ease-in-out infinite;
+  }
+  .eq span:nth-child(1){ animation-delay:0s; }
+  .eq span:nth-child(2){ animation-delay:.15s; }
+  .eq span:nth-child(3){ animation-delay:.3s; }
+  .eq span:nth-child(4){ animation-delay:.45s; }
+  @keyframes bounce{ 0%,100%{ height:3px; } 50%{ height:14px; } }
+  .now-label{ font-family:'Space Grotesk',sans-serif; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent-a); }
+
+  .player-box{
+    width:100%; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000;
+    margin-bottom:10px; position:relative;
+  }
+  .player-box iframe{ width:100%; height:100%; border:0; display:block; }
+  #sc-frame-wrap{ display:none; }
+  #sc-frame-wrap iframe{ height:150px; }
+
+  .track-meta{ display:flex; flex-direction:column; gap:2px; }
+  .track-title{ font-size:14px; font-weight:600; color:var(--text-hi); line-height:1.3;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .track-req{ font-size:12px; color:var(--text-mid); }
+  .track-req b{ color:var(--accent-a); font-weight:600; }
+
+  .idle-box{ text-align:center; padding:26px 10px; }
+  .idle-box .big{ font-family:'Space Grotesk',sans-serif; font-size:15px; margin-bottom:4px; }
+  .idle-box .small{ font-size:12px; color:var(--text-mid); }
+
+  .queue-wrap{ margin-top:12px; }
+  .queue-title{ font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim); margin-bottom:8px; }
+  .queue-item{
+    display:flex; justify-content:space-between; gap:10px; padding:7px 10px;
+    background:rgba(255,255,255,0.04); border-radius:8px; margin-bottom:6px; font-size:12.5px;
+  }
+  .queue-item .qi-title{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-hi); }
+  .queue-item .qi-req{ color:var(--text-dim); flex-shrink:0; }
+  .queue-empty{ font-size:12px; color:var(--text-dim); }
+
+  .skip-btn{
+    margin-top:10px; width:100%; padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.12);
+    background:rgba(255,255,255,0.05); color:var(--text-mid); font-size:12px; cursor:pointer;
+  }
+  .skip-btn:hover{ color:var(--text-hi); border-color:rgba(255,255,255,0.25); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= SETUP SCREEN ================= -->
+  <div id="setup-screen">
+    <div class="setup-card">
+      <p class="setup-title">🎧 Song Request Overlay</p>
+      <p class="setup-sub">Виджет слушает награду за баллы канала на Twitch. Как только зритель заказывает трек с YouTube или SoundCloud, он встаёт в очередь и включается сам.</p>
+
+      <div class="field">
+        <label>Client ID</label>
+        <input id="in-client" placeholder="из dev.twitch.tv/console/apps">
+      </div>
+      <div class="field">
+        <label>Access Token</label>
+        <input id="in-token" placeholder="без приставки oauth:">
+        <div class="hint">Нужен токен с правом (scope) <b>channel:read:redemptions</b>.</div>
+      </div>
+      <div class="field">
+        <label>Имя канала (логин на Twitch)</label>
+        <input id="in-channel" placeholder="например: mychannel">
+      </div>
+      <div class="field">
+        <label>Название награды</label>
+        <input id="in-reward" placeholder="например: Заказать музыку">
+        <div class="hint">Должно точно совпадать с названием награды в панели Twitch (регистр не важен). У награды обязательно включите поле «требовать ввод текста от зрителя».</div>
+      </div>
+
+      <button class="btn" id="btn-start">Сохранить и запустить превью</button>
+      <button class="btn btn-ghost" id="btn-genurl">Сгенерировать ссылку для OBS</button>
+
+      <div id="url-block" style="display:none">
+        <div class="url-out">
+          <input id="out-url" readonly>
+          <button id="btn-copy">Copy</button>
+        </div>
+        <div class="hint">Вставьте эту ссылку в источник «Браузер» (Browser Source) в OBS — виджет запустится автоматически, без экрана настройки.</div>
+      </div>
+
+      <span class="help-toggle" id="help-toggle">Как получить Client ID и токен?</span>
+      <div class="help-body" id="help-body">
+        <b>1. Client ID</b>
+        <ol>
+          <li>Зайдите на <a href="https://dev.twitch.tv/console/apps" target="_blank">dev.twitch.tv/console/apps</a> и создайте приложение (Register Your Application).</li>
+          <li>OAuth Redirect URL можно указать любой, например <code>http://localhost</code> — для этого виджета он не используется.</li>
+          <li>Скопируйте выданный <b>Client ID</b>.</li>
+        </ol>
+        <b>2. Access Token</b>
+        <ol>
+          <li>Проще всего получить токен через сторонний генератор, например <a href="https://twitchtokengenerator.com" target="_blank">twitchtokengenerator.com</a>, указав тот же Client ID и scope <b>channel:read:redemptions</b>.</li>
+          <li>Скопируйте токен без приставки <code>oauth:</code>.</li>
+        </ol>
+        <b>3. Награда</b>
+        <p>В панели Twitch (Creator Dashboard → Viewer Rewards → Channel Points) создайте награду, включите «Require Viewer to Enter Text» — именно в это поле зритель будет вставлять ссылку на трек.</p>
+      </div>
+
+      <div class="status-line" id="setup-status"></div>
+    </div>
+  </div>
+
+  <!-- ================= OVERLAY SCREEN ================= -->
+  <div id="overlay-screen">
+    <div class="conn-dot" id="conn-dot"></div>
+    <div class="card">
+
+      <div id="idle-view" class="idle-box">
+        <div class="big">🎵 Ждём заказы музыки</div>
+        <div class="small">Погасите баллы канала, чтобы включить трек</div>
+      </div>
+
+      <div id="playing-view" style="display:none">
+        <div class="now-head">
+          <div class="eq"><span></span><span></span><span></span><span></span></div>
+          <span class="now-label">Сейчас играет</span>
+        </div>
+
+        <div class="player-box" id="yt-box">
+          <div id="yt-player"></div>
+        </div>
+        <div class="player-box" id="sc-frame-wrap">
+          <iframe id="sc-iframe" scrolling="no" frameborder="no"
+            src="https://w.soundcloud.com/player/?url=&auto_play=false&color=%2335F0D0&show_comments=false&show_user=false"></iframe>
+        </div>
+
+        <div class="track-meta">
+          <div class="track-title" id="track-title">—</div>
+          <div class="track-req">заказал(а) <b id="track-req"></b></div>
+        </div>
+
+        <button class="skip-btn" id="btn-skip">Пропустить трек ▸</button>
+      </div>
+
+      <div class="queue-wrap">
+        <div class="queue-title">Очередь</div>
+        <div id="queue-list"><div class="queue-empty">пусто</div></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script src="https://w.soundcloud.com/player/api.js"></script>
+<script>
+(function(){
+  // ---------- state ----------
+  var cfg = { clientId:'', token:'', channel:'', reward:'' };
+  var queue = [];
+  var current = null;
+  var ytPlayer = null, ytReady = false;
+  var scWidget = null, scReady = false;
+  var ws = null, wsBackoff = 1000;
+
+  // ---------- helpers ----------
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+  function parseRequest(text){
+    if(!text) return null;
+    text = text.trim();
+    var yt = text.match(/(?:youtube\.com\/(?:watch\?[^ ]*v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/i);
+    if(yt) return { type:'youtube', id: yt[1], raw:text };
+    var sc = text.match(/(https?:\/\/(?:www\.|m\.)?(?:soundcloud\.com|snd\.sc)\/[^\s]+)/i);
+    if(sc) return { type:'soundcloud', url: sc[1], raw:text };
+    return null;
+  }
+
+  function setDot(on){
+    var d = $('conn-dot');
+    if(on) d.classList.add('on'); else d.classList.remove('on');
+  }
+
+  // ---------- queue / player ----------
+  function renderQueue(){
+    var el = $('queue-list');
+    if(queue.length === 0){ el.innerHTML = '<div class="queue-empty">пусто</div>'; return; }
+    el.innerHTML = queue.map(function(q){
+      return '<div class="queue-item"><span class="qi-title">'+esc(q.raw)+'</span><span class="qi-req">'+esc(q.requester)+'</span></div>';
+    }).join('');
+  }
+
+  function showIdle(){
+    $('idle-view').style.display = 'block';
+    $('playing-view').style.display = 'none';
+  }
+  function showPlaying(item){
+    $('idle-view').style.display = 'none';
+    $('playing-view').style.display = 'block';
+    $('track-title').textContent = item.raw;
+    $('track-req').textContent = item.requester;
+    $('yt-box').style.display = item.type === 'youtube' ? 'block' : 'none';
+    $('sc-frame-wrap').style.display = item.type === 'soundcloud' ? 'block' : 'none';
+  }
+
+  function playNext(){
+    if(queue.length === 0){ current = null; showIdle(); renderQueue(); return; }
+    current = queue.shift();
+    renderQueue();
+    showPlaying(current);
+    if(current.type === 'youtube'){
+      if(ytReady && ytPlayer) ytPlayer.loadVideoById(current.id);
+    } else {
+      if(scReady && scWidget) scWidget.load(current.url, { auto_play:true, show_comments:false, show_user:false, color:'35F0D0' });
+    }
+  }
+
+  function enqueue(parsed, requester){
+    queue.push({ type:parsed.type, id:parsed.id, url:parsed.url, raw:parsed.raw, requester: requester });
+    renderQueue();
+    if(!current) playNext();
+  }
+
+  // ---------- YouTube ----------
+  window.onYouTubeIframeAPIReady = function(){
+    ytPlayer = new YT.Player('yt-player', {
+      height:'100%', width:'100%',
+      playerVars:{ autoplay:1, rel:0 },
+      events:{
+        onReady: function(){ ytReady = true; },
+        onStateChange: function(e){ if(e.data === YT.PlayerState.ENDED) playNext(); }
+      }
+    });
+  };
+  var ytScript = document.createElement('script');
+  ytScript.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(ytScript);
+
+  // ---------- SoundCloud ----------
+  function initSC(){
+    if(typeof SC === 'undefined'){ setTimeout(initSC, 300); return; }
+    scWidget = SC.Widget('sc-iframe');
+    scWidget.bind(SC.Widget.Events.READY, function(){ scReady = true; });
+    scWidget.bind(SC.Widget.Events.FINISH, function(){ playNext(); });
+  }
+  initSC();
+
+  // ---------- Twitch EventSub ----------
+  function connectEventSub(url){
+    ws = new WebSocket(url || 'wss://eventsub.wss.twitch.tv/ws');
+    ws.onopen = function(){ wsBackoff = 1000; };
+    ws.onclose = function(){
+      setDot(false);
+      setTimeout(function(){ connectEventSub(); }, wsBackoff);
+      wsBackoff = Math.min(wsBackoff * 2, 30000);
+    };
+    ws.onerror = function(){};
+    ws.onmessage = function(ev){
+      var msg;
+      try { msg = JSON.parse(ev.data); } catch(e){ return; }
+      var type = msg.metadata && msg.metadata.message_type;
+
+      if(type === 'session_welcome'){
+        var sessionId = msg.payload.session.id;
+        createSubscription(sessionId);
+      } else if(type === 'session_reconnect'){
+        var newUrl = msg.payload.session.reconnect_url;
+        var oldWs = ws;
+        connectEventSub(newUrl);
+        setTimeout(function(){ oldWs.close(); }, 2000);
+      } else if(type === 'notification'){
+        var sub = msg.payload.subscription;
+        if(sub && sub.type === 'channel.channel_points_custom_reward_redemption.add'){
+          handleRedemption(msg.payload.event);
+        }
+      }
+    };
+  }
+
+  function helixHeaders(){
+    return { 'Client-Id': cfg.clientId, 'Authorization': 'Bearer ' + cfg.token, 'Content-Type': 'application/json' };
+  }
+
+  function createSubscription(sessionId){
+    fetch('https://api.twitch.tv/helix/users?login=' + encodeURIComponent(cfg.channel), { headers: helixHeaders() })
+      .then(function(r){ return r.json(); })
+      .then(function(userData){
+        if(!userData.data || !userData.data.length){
+          setStatus('Канал "'+cfg.channel+'" не найден. Проверьте логин.', true);
+          return;
+        }
+        var broadcasterId = userData.data[0].id;
+        return fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+          method:'POST', headers: helixHeaders(),
+          body: JSON.stringify({
+            type:'channel.channel_points_custom_reward_redemption.add',
+            version:'1',
+            condition:{ broadcaster_user_id: broadcasterId },
+            transport:{ method:'websocket', session_id: sessionId }
+          })
+        });
+      })
+      .then(function(r){ if(!r) return; return r.json(); })
+      .then(function(data){
+        if(!data) return;
+        if(data.data){ setDot(true); setStatus('Подключено. Ждём заказы 🎶', false); }
+        else { setStatus('Ошибка подписки: '+ (data.message||'проверьте токен и права'), true); }
+      })
+      .catch(function(e){ setStatus('Ошибка сети: '+e.message, true); });
+  }
+
+  function handleRedemption(event){
+    var rewardTitle = (event.reward && event.reward.title || '').trim().toLowerCase();
+    if(rewardTitle !== cfg.reward.trim().toLowerCase()) return;
+    var parsed = parseRequest(event.user_input || '');
+    if(!parsed) return; // не ссылка на YouTube/SoundCloud — молча игнорируем
+    enqueue(parsed, event.user_name || event.user_login || 'зритель');
+  }
+
+  function setStatus(text, isErr){
+    var el = $('setup-status');
+    if(el){ el.textContent = text; el.className = 'status-line ' + (isErr ? 'err' : 'ok'); }
+  }
+
+  // ---------- boot ----------
+  function startOverlay(){
+    $('setup-screen').style.display = 'none';
+    $('overlay-screen').style.display = 'block';
+    $('btn-skip').addEventListener('click', playNext);
+    connectEventSub();
+  }
+
+  function readForm(){
+    cfg.clientId = $('in-client').value.trim();
+    cfg.token = $('in-token').value.trim().replace(/^oauth:/,'');
+    cfg.channel = $('in-channel').value.trim().replace(/^#/,'');
+    cfg.reward = $('in-reward').value.trim();
+  }
+
+  function buildUrl(){
+    var base = location.origin + location.pathname;
+    var p = new URLSearchParams();
+    p.set('client_id', cfg.clientId);
+    p.set('token', cfg.token);
+    p.set('channel', cfg.channel);
+    p.set('reward', cfg.reward);
+    return base + '?' + p.toString();
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var params = new URLSearchParams(location.search);
+    cfg.clientId = params.get('client_id') || '';
+    cfg.token = params.get('token') || '';
+    cfg.channel = params.get('channel') || '';
+    cfg.reward = params.get('reward') || '';
+
+    if(cfg.clientId && cfg.token && cfg.channel && cfg.reward){
+      startOverlay();
+      return;
+    }
+
+    $('in-client').value = cfg.clientId;
+    $('in-token').value = cfg.token;
+    $('in-channel').value = cfg.channel;
+    $('in-reward').value = cfg.reward;
+
+    $('help-toggle').addEventListener('click', function(){
+      var b = $('help-body');
+      b.style.display = b.style.display === 'block' ? 'none' : 'block';
+    });
+
+    $('btn-start').addEventListener('click', function(){
+      readForm();
+      if(!cfg.clientId || !cfg.token || !cfg.channel || !cfg.reward){
+        setStatus('Заполните все поля.', true); return;
+      }
+      startOverlay();
+    });
+
+    $('btn-genurl').addEventListener('click', function(){
+      readForm();
+      if(!cfg.clientId || !cfg.token || !cfg.channel || !cfg.reward){
+        setStatus('Заполните все поля перед генерацией ссылки.', true); return;
+      }
+      $('out-url').value = buildUrl();
+      $('url-block').style.display = 'block';
+    });
+
+    $('btn-copy').addEventListener('click', function(){
+      $('out-url').select();
+      navigator.clipboard.writeText($('out-url').value).then(function(){
+        var b = $('btn-copy'); var old = b.textContent; b.textContent='Скопировано'; setTimeout(function(){ b.textContent = old; }, 1500);
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
